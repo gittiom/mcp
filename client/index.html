@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Manual Crypto Assistant</title>
+  <style>
+    .cursor-box {
+      width: 100px;
+      height: 100px;
+      background: #2196F3;
+      position: absolute;
+    }
+    .controls {
+      position: fixed;
+      bottom: 20px;
+      padding: 15px;
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      width: 90%;
+      max-width: 800px;
+      overflow-y: auto;
+      max-height: 70vh;
+    }
+    .status {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 10px;
+      background: #4CAF50;
+      color: white;
+      border-radius: 5px;
+    }
+    .status.disconnected {
+      background: #F44336;
+    }
+    .token-section {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #eee;
+    }
+    .metadata-section {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #eee;
+    }
+    .nft-section {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #eee;
+    }
+    section h3 {
+      margin-top: 0;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="cursor-box" id="cursor"></div>
+  <div id="status" class="status">Checking connection...</div>
+  
+  <div class="controls">
+    <button onclick="move('left')">←</button>
+    <button onclick="move('up')">↑</button>
+    <button onclick="move('down')">↓</button>
+    <button onclick="move('right')">→</button>
+    
+    <div class="token-section">
+      <h3>Block Data</h3>
+      <input type="number" id="chainId" placeholder="Chain ID (e.g., 1)" value="1">
+      <button onclick="getBlock()">Get Block</button>
+    </div>
+    
+    <div class="token-section">
+      <h3>Buy Crypto</h3>
+      <input type="number" id="amount" placeholder="Amount" value="100">
+      <button onclick="buyCrypto()">Buy</button>
+    </div>
+    
+    <div class="token-section">
+      <h3>Token Balances</h3>
+      <input type="text" id="walletAddress" placeholder="Wallet Address" value="0xd8da6bf26964af9d7eed9e03e53415d37aa96045">
+      <input type="number" id="tokenChainId" placeholder="Chain ID" value="1">
+      <button onclick="getTokenBalances()">Get Token Balances</button>
+    </div>
+    
+    <div class="metadata-section">
+      <h3>Token Metadata</h3>
+      <input type="text" id="tokenAddress" placeholder="Token Contract Address" value="0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2">
+      <input type="number" id="metadataChainId" placeholder="Chain ID" value="1">
+      <button onclick="getTokenMetadata()">Get Token Metadata</button>
+    </div>
+    
+    <div class="nft-section">
+      <h3>NFT Metadata</h3>
+      <input type="text" id="nftAddress" placeholder="NFT Contract Address" value="0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d">
+      <input type="text" id="tokenId" placeholder="Token ID" value="1">
+      <input type="number" id="nftChainId" placeholder="Chain ID" value="1">
+      <button onclick="getNFTMetadata()">Get NFT Metadata</button>
+    </div>
+  </div>
+
+  <script>
+    const cursor = document.getElementById('cursor');
+    const statusEl = document.getElementById('status');
+    let position = { x: 0, y: 0 };
+
+    // Check server status on load
+    window.addEventListener('load', async () => {
+      try {
+        const response = await fetch('/status');
+        const data = await response.json();
+        
+        if (data.status === 'connected') {
+          statusEl.textContent = 'Connected';
+          statusEl.classList.remove('disconnected');
+        } else {
+          statusEl.textContent = 'Disconnected';
+          statusEl.classList.add('disconnected');
+        }
+      } catch (error) {
+        statusEl.textContent = 'Disconnected';
+        statusEl.classList.add('disconnected');
+        console.error('Error checking server status:', error);
+      }
+    });
+
+    async function move(direction) {
+      try {
+        const response = await fetch('/moveCursor', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ direction })
+        });
+        
+        const result = await response.json();
+        position = result.position;
+        cursor.style.transform = `translate(${position.x}px, ${position.y}px)`;
+      } catch (error) {
+        console.error('Error moving cursor:', error);
+      }
+    }
+
+    async function getBlock() {
+      try {
+        const chainId = document.getElementById('chainId').value;
+        const response = await fetch('/getBlock', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chainId })
+        });
+        
+        const result = await response.json();
+        alert(`Block Data: ${JSON.stringify(result, null, 2)}`);
+      } catch (error) {
+        console.error('Error getting block:', error);
+        alert(`Error: ${error.message}`);
+      }
+    }
+
+    async function buyCrypto() {
+      try {
+        const amount = document.getElementById('amount').value;
+        const response = await fetch('/createTransakOrder', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            amount,
+            cryptoCurrency: 'ETH',
+            address: '0xYourWalletAddress' // Replace with real address
+          })
+        });
+        
+        const result = await response.json();
+        if (result.url) {
+          window.open(result.url, '_blank');
+        } else {
+          alert('Error creating order. Check console for details.');
+        }
+      } catch (error) {
+        console.error('Error buying crypto:', error);
+        alert(`Error: ${error.message}`);
+      }
+    }
+    
+    async function getTokenBalances() {
+      try {
+        const address = document.getElementById('walletAddress').value;
+        const chainId = document.getElementById('tokenChainId').value;
+        
+        if (!address) {
+          alert('Please enter a wallet address');
+          return;
+        }
+        
+        const response = await fetch('/getTokenBalances', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ address, chainId })
+        });
+        
+        const result = await response.json();
+        alert(`Token Balances: ${JSON.stringify(result, null, 2)}`);
+      } catch (error) {
+        console.error('Error getting token balances:', error);
+        alert(`Error: ${error.message}`);
+      }
+    }
+    
+    async function getTokenMetadata() {
+      try {
+        const addresses = document.getElementById('tokenAddress').value;
+        const chainId = document.getElementById('metadataChainId').value;
+        
+        if (!addresses) {
+          alert('Please enter a token contract address');
+          return;
+        }
+        
+        const response = await fetch('/getTokenMetadata', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ addresses, chainId })
+        });
+        
+        const result = await response.json();
+        alert(`Token Metadata: ${JSON.stringify(result, null, 2)}`);
+      } catch (error) {
+        console.error('Error getting token metadata:', error);
+        alert(`Error: ${error.message}`);
+      }
+    }
+    
+    async function getNFTMetadata() {
+      try {
+        const address = document.getElementById('nftAddress').value;
+        const tokenId = document.getElementById('tokenId').value;
+        const chainId = document.getElementById('nftChainId').value;
+        
+        if (!address || !tokenId) {
+          alert('Please enter both NFT contract address and token ID');
+          return;
+        }
+        
+        const response = await fetch('/getNFTMetadata', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ address, tokenId, chainId })
+        });
+        
+        const result = await response.json();
+        alert(`NFT Metadata: ${JSON.stringify(result, null, 2)}`);
+      } catch (error) {
+        console.error('Error getting NFT metadata:', error);
+        alert(`Error: ${error.message}`);
+      }
+    }
+  </script>
+</body>
+</html>
